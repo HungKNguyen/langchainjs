@@ -3126,7 +3126,7 @@ export class ChatOpenAI<
 
     if (config?.strict !== undefined && method === "jsonMode") {
       throw new Error(
-        "Argument `strict` is only supported for `method` = 'function_calling'"
+        "Argument `strict` is only supported for `method` = 'function_calling' or 'jsonSchema'"
       );
     }
 
@@ -3154,18 +3154,22 @@ export class ChatOpenAI<
         outputParser = new JsonOutputParser<RunOutput>();
       }
     } else if (method === "jsonSchema") {
+      const outputSchemaIsZod = isZodSchema(schema);
+      const asJsonSchema = outputSchemaIsZod
+        ? zodToJsonSchema(schema)
+        : schema;
       llm = this.withConfig({
         response_format: {
           type: "json_schema",
           json_schema: {
             name: name ?? "extract",
-            description: schema.description,
-            schema,
+            description: asJsonSchema.description,
+            schema: asJsonSchema,
             strict: config?.strict,
           },
         },
       } as Partial<CallOptions>);
-      if (isZodSchema(schema)) {
+      if (outputSchemaIsZod) {
         const altParser = StructuredOutputParser.fromZodSchema(schema);
         outputParser = RunnableLambda.from<AIMessageChunk, RunOutput>(
           (aiMessage: AIMessageChunk) => {
